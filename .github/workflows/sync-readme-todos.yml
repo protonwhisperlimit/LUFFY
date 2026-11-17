@@ -1,0 +1,155 @@
+name: Sync README TODO list
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-readme:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out dev
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Ensure main ref is available
+        shell: bash
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main || git fetch --no-tags origin main
+          git rev-parse --verify origin/main || git rev-parse --verify FETCH_HEAD
+
+      - name: Update README TODO section from dev Python files
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          import re
+          import subprocess
+
+          root = Path(os.environ.get("GITHUB_WORKSPACE", ".")).resolve()
+          readme = root / "README.md"
+          raw = readme.read_text(encoding="utf-8")
+          lines = raw.splitlines()
+          heading = "### 📝 Complete TODO List"
+          try:
+              h = next(i for i, line in enumerate(lines) if line.strip() == heading)
+          except StopIteration:
+              raise SystemExit("Complete TODO heading not found")
+          e = next((i for i in range(h + 1, len(lines)) if lines[i].startswith("## ")), len(lines))
+
+          entry_re = re.compile(r"^- \[ \] \*\*(?P<path>.+?):(?P<line>\d+)\*\* - (?P<text>.*)$")
+          by_path = {}
+          baseline_count = 0
+          for line in lines[h + 1:e]:
+              if not line.strip():
+                  continue
+              match = entry_re.match(line)
+              if not match:
+                  raise SystemExit(f"Cannot parse README TODO entry: {line!r}")
+              baseline_count += 1
+              path = match.group("path")
+              by_path.setdefault(path, []).append((int(match.group("line")), match.group("text")))
+
+          todo_re = re.compile(r"#\s*TODO\b:?\s*(.*?)\s*$")
+          scanned = {}
+          python_files = 0
+          for path in root.rglob("*.py"):
+              parts = path.relative_to(root).parts
+              if ".git" in parts or ".github" in parts or not path.is_file():
+                  continue
+              python_files += 1
+              rel = path.relative_to(root).as_posix()
+              try:
+                  source = path.read_text(encoding="utf-8")
+              except UnicodeDecodeError:
+                  source = path.read_text(encoding="utf-8", errors="replace")
+              items = []
+              for line_no, source_line in enumerate(source.splitlines(), 1):
+                  todo_match = todo_re.search(source_line)
+                  if todo_match:
+                      items.append((line_no, todo_match.group(1).strip()))
+              if items:
+                  scanned[rel] = items
+
+          try:
+              subprocess.run(["git", "rev-parse", "--verify", "origin/main"], cwd=root, check=True, capture_output=True)
+              base_ref = "origin/main"
+          except subprocess.CalledProcessError:
+              base_ref = "FETCH_HEAD"
+          diff_output = subprocess.check_output(
+              ["git", "diff", "--name-status", "-M", f"{base_ref}...HEAD"],
+              cwd=root,
+              text=True,
+          )
+          print("DIFF NAME STATUS:")
+          print(diff_output)
+          affected = set()
+          for row in diff_output.splitlines():
+              columns = row.split("\t")
+              if len(columns) < 2:
+                  continue
+              status = columns[0]
+              names = columns[1:]
+              candidates = names[:2] if status[0] in ("R", "C") and len(names) >= 2 else names[:1]
+              for name in candidates:
+                  if name.endswith(".py"):
+                      affected.add(name)
+          print("AFFECTED PY FILES:", sorted(affected))
+
+          for rel in affected:
+              by_path.pop(rel, None)
+              if (root / rel).exists():
+                  by_path[rel] = [(int(line_no), text) for line_no, text in scanned.get(rel, [])]
+
+          entries = []
+          for path, items in by_path.items():
+              for line_no, text in items:
+                  entries.append((path, int(line_no), text))
+          entries.sort(key=lambda item: (item[0], item[1]))
+          rendered = [f"- [ ] **{path}:{line_no}** - {text}" for path, line_no, text in entries]
+          updated_lines = lines[:h + 1] + [""] + rendered + [""] + lines[e:]
+          updated = "\n".join(updated_lines)
+          if raw.endswith("\n"):
+              updated += "\n"
+
+          print(f"baseline_entries={baseline_count}")
+          print(f"python_files_searched={python_files}")
+          print(f"python_files_with_todo={len(scanned)}")
+          print(f"updated_entries={len(entries)}")
+          for rel in sorted(affected):
+              current_items = by_path.get(rel, [])
+              print(f"CHANGED {rel}: {len(current_items)} TODO entries")
+              for line_no, text in current_items:
+                  print(f"  {line_no}: {text}")
+
+          if updated != raw:
+              readme.write_text(updated, encoding="utf-8")
+              Path("/tmp/readme_changed").write_text("1", encoding="utf-8")
+              print("README_CHANGED=yes")
+          else:
+              print("README_CHANGED=no")
+          PY
+
+      - name: Commit README and remove temporary workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow_path=".github/workflows/sync-readme-todos.yml"
+          if [ ! -f /tmp/readme_changed ]; then
+            echo "README unchanged; temporary workflow is retained for diagnostics."
+            exit 0
+          fi
+          git add README.md
+          git rm -f "$workflow_path"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "docs: sync README TODO list with dev"
+          git push origin HEAD:dev
