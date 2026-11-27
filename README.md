@@ -170,6 +170,7 @@ LUFFY/
 - [ ] **luffy/verl/verl/third_party/vllm/vllm_v_0_5_4/llm.py:148** - check usagecontext
 - [ ] **luffy/verl/verl/third_party/vllm/vllm_v_0_5_4/llm.py:205** - (sgm): we can optimize it by making the dataloader yield List[int] without padding.
 - [ ] **luffy/verl/verl/third_party/vllm/vllm_v_0_5_4/llm.py:221** - (shengguangming): can be optimzied by rewrite the Sampler._get_logprobs() logits
+- [ ] **luffy/verl/verl/third_party/vllm/vllm_v_0_5_4/llm.py:221** - (shengguangming): can be optimzied by rewrite the Sampler._get_logprobs() logits
 - [ ] **luffy/verl/verl/third_party/vllm/vllm_v_0_5_4/llm_engine_sp.py:143** - (woosuk): Print more configs in debug mode.
 - [ ] **luffy/verl/verl/third_party/vllm/vllm_v_0_5_4/llm_engine_sp.py:160** - (shengguangming): maybe we can choose init here or from arguments
 - [ ] **luffy/verl/verl/third_party/vllm/vllm_v_0_5_4/llm_engine_sp.py:262** - (sgm): add for verl but we may not tokenizer in Rollout
@@ -210,6 +211,7 @@ LUFFY/
 - [ ] **luffy/verl/verl/trainer/fsdp_sft_trainer.py:178** - Initialize FSDP wrapped model
 - [ ] **luffy/verl/verl/trainer/fsdp_sft_trainer.py:301** - add a unified tracking
 - [ ] **luffy/verl/verl/trainer/fsdp_sft_trainer.py:318** - (zhangchi.usc1992) add back checkpoint manager. Currently, it blocks when uploading to hdfs. So very slow.
+- [ ] **luffy/verl/verl/trainer/fsdp_sft_trainer.py:159** - Implement model loading with proper initialization context
 - [ ] **luffy/verl/verl/trainer/main_ppo.py:50** - Implement reward computation for different data sources
 - [ ] **luffy/verl/verl/trainer/main_ppo.py:53** - Add support for parallel processing of reward computation
 - [ ] **luffy/verl/verl/trainer/main_ppo.py:54** - Implement proper sequence decoding and validation
@@ -248,7 +250,7 @@ LUFFY/
 - [ ] **luffy/verl/verl/workers/fsdp_workers.py:252** - add more optimizer args into config
 - [ ] **luffy/verl/verl/workers/fsdp_workers.py:278** - (sgm): support FSDP hybrid shard for larger model
 - [ ] **luffy/verl/verl/workers/fsdp_workers.py:289** - a sharding manager that do nothing?
-- [ ] **luffy/verl/verl/workers/fsdp_workers.py:416** - here, we should return all metrics
+- [ ] **luffy/verl/verl/workers/fsdp_workers.py:391** - here, we should return all metrics
 - [ ] **luffy/verl/verl/workers/fsdp_workers.py:811** - (sgm): we may need to extract it to dp_reward_model.py
 - [ ] **luffy/verl/verl/workers/megatron_workers.py:106** - (sgm): Currently, we only support reference model param offload
 - [ ] **luffy/verl/verl/workers/megatron_workers.py:204** - add more optimizer args into config
